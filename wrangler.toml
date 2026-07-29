@@ -6,10 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 # Outbox + 推送订阅存这个 KV namespace。
 # ⭐ 不写 id：用「Deploy to Cloudflare」一键部署 / wrangler deploy 时会【自动创建】并绑定，
 #    用户零操作（CF 2025 自动资源 provisioning）。
-[[d1_databases]]
-binding = "DB"
-database_name = "relay-db"
-database_id = "b637fbcf-7e9d-41d5-9cb3-cfdb4bc3f5c3"
+[[kv_namespaces]]
+binding = "OUTBOX"
 
 # secret 不写这里。一键部署页会根据 .dev.vars.example 提示填；
 # 或部署后在 CF 面板 → Worker → 变量和秘密 添加：
