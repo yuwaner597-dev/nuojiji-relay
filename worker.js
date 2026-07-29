@@ -1,7 +1,12 @@
+import { createApp } from './src/app.js';
+import { runProactiveTick } from './src/proactive/tick.js';
+
+const app = createApp();
+
 // 这是一个“自动翻译机器人”，把所有呼叫旧仓库(KV)的动作，变成呼叫新仓库(D1)
 class D1KV {
     constructor(db) { this.db = db; }
-    
+    
     async get(key, options) {
         try {
             const type = (options && typeof options === 'object') ? options.type : options;
@@ -13,7 +18,7 @@ class D1KV {
             return res;
         } catch (e) { return null; }
     }
-    
+    
     // 🚨 核心修复：完美模拟原版 KV 的 getWithMetadata 技能
     async getWithMetadata(key, options) {
         try {
@@ -21,7 +26,7 @@ class D1KV {
             return { value, metadata: {} };
         } catch (e) { return { value: null, metadata: {} }; }
     }
-    
+    
     async put(key, value, options) {
         try {
             let valStr;
@@ -35,13 +40,13 @@ class D1KV {
             await this.db.prepare("INSERT OR REPLACE INTO outbox (key_name, value_data) VALUES (?, ?)").bind(key, valStr).run();
         } catch (e) { console.error("KV put error:", e); }
     }
-    
+    
     async delete(key) {
         try {
             await this.db.prepare("DELETE FROM outbox WHERE key_name = ?").bind(key).run();
         } catch (e) { }
     }
-    
+    
     async list(options = {}) {
         try {
             let query = "SELECT key_name as name FROM outbox";
@@ -60,3 +65,23 @@ class D1KV {
         } catch (e) { return { keys: [], list_complete: true }; }
     }
 }
+
+export default {
+    fetch: (req, env, ctx) => {
+        // 无敌拦截：无论你在 toml 里起名叫 DB 还是 OUTBOX，只要它是 D1 数据库，统统强行套上翻译机器人！
+        let rawDb = env.DB || env.OUTBOX;
+        if (rawDb && typeof rawDb.prepare === 'function') {
+            env.OUTBOX = new D1KV(rawDb);
+        }
+        return app.fetch(req, env, ctx);
+    },
+    async scheduled(_event, env, ctx) {
+        let rawDb = env.DB || env.OUTBOX;
+        if (rawDb && typeof rawDb.prepare === 'function') {
+            env.OUTBOX = new D1KV(rawDb);
+        }
+        ctx.waitUntil(
+            runProactiveTick(env).catch((e) => console.error('[scheduled] proactive tick failed:', e?.message))
+        );
+    },
+};
